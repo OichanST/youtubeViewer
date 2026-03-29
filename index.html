@@ -1,0 +1,306 @@
+<html>
+<script type="text/javascript">
+
+	const youtubeId = "UCJxtUcrOc1yyG7ZzJKBtTUA";
+	const apiKey = "AIzaSyAcvkG759mbzrz-Xkoh0YdwSybBgwYeybA";
+	// Google Spread Sheetデータ取得用のAPIのURL
+	const gsendpoint = "https://script.google.com/macros/s/AKfycbxIaQ6fbvHINLb4pdBMsrXVcWnpeRGsa9jqwUXQNtKQWNh_SbA5kTHUQ1o7_NvpMGF4Hg/exec";
+
+	let musicData;
+	let playResult;
+
+	function init(){
+		console.log("init start.");
+
+		const musicDataJson = localStorage.getItem("musicData");
+
+		if(musicDataJson){
+			musicData = JSON.parse(musicDataJson);
+			getPlayResult();
+		}else{
+			// Google spreadsheetデータをロードする
+			fetch(gsendpoint + "?type=getMusicData").
+			then(response => response.json()).
+			then(data => {
+				localStorage.setItem("musicData", JSON.stringify(data.musicList));
+				musicData = data.musicList;
+				console.log("musicData loaded.");
+				getPlayResult();
+			});
+		}
+	}	
+
+	function getPlayResult(){
+
+		const playResultJson = localStorage.getItem("playResult");
+
+		if(playResultJson){
+			playResult = JSON.parse(playResultJson);
+			seekYoutubeChannel();
+		}else{
+			// Google spreadsheetデータをロードする
+			fetch(gsendpoint + "?type=getPlayResult&id=ST-R").
+			then(response => response.json()).
+			then(data => {
+				// セッションストレージに楽曲データを退避
+				localStorage.setItem("playResult", JSON.stringify(data));
+				
+				playResult = data;
+				console.log("playResult loaded.");
+				seekYoutubeChannel();
+			});
+		}
+	}
+
+	function seekYoutubeChannel(){
+
+		const strJson = localStorage.getItem("playlist");
+
+		if(strJson){
+			
+			displayData();
+
+		}else{
+
+			localStorage.setItem("playlist", JSON.stringify([]));
+
+			fetch("https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=" + youtubeId + "&key=" + apiKey).
+			then(response => response.json()).
+			then(data => {
+				const playlistId = data.items[0].contentDetails.relatedPlaylists.uploads;
+
+				getYoutubeList(playlistId);
+			});
+		}
+	}
+
+	function getYoutubeList(playlistId){
+
+		console.log("getYoutubeList start.");
+
+		fetch("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=" + playlistId + "&key=" + apiKey + "&maxResults=50").
+		then(response => response.json()).
+		then(data => {
+			
+			setData(data);
+			
+			if(data.nextPageToken){
+				getNextList(playlistId, data.nextPageToken);
+			}
+		});
+	}
+
+	function getNextList(playlistId, pageToken){
+
+		console.log("getNextList start.");
+
+		fetch("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=" + playlistId + "&pageToken=" + pageToken + "&key=" + apiKey + "&maxResults=50").
+		then(response => response.json()).
+		then(data => {
+
+			setData(data);
+
+			if(data.nextPageToken){
+				getNextList(playlistId, data.nextPageToken);
+			}else{
+				displayData();
+			}
+		});
+	}
+
+
+	function setData(data){
+
+		const storageList = JSON.parse(localStorage.getItem("playlist"));
+
+		for(const item of data.items){
+
+			storageList.push({
+				title:item.snippet.title,
+				videoId:item.snippet.resourceId.videoId
+			});
+		}
+
+		localStorage.setItem("playlist", JSON.stringify(storageList));
+
+	}
+
+	function displayData(){
+
+		console.log("displayData start.");
+
+		console.log(playResult);
+
+		const dt = document.getElementById("dt");
+		dt.innerHTML = null;
+
+		const storageList = JSON.parse(localStorage.getItem("playlist"));
+
+
+		storageList.sort(sortFunc);
+
+		for(const item of storageList){
+
+			const row = document.createElement("tr");
+			row.addEventListener("mouseover", function(e){
+				e.currentTarget.style.color = "#FF0000";
+				e.currentTarget.style.backgroundColor = "#F0F0F0";
+			});
+			row.addEventListener("mouseout", function(e){
+				e.currentTarget.style.color = "black";
+				e.currentTarget.style.backgroundColor = "white";
+			});
+
+			const title = document.createElement("td");
+			
+			title.innerText = item.title;
+
+			row.appendChild(title);
+
+			const videoId = document.createElement("td");
+
+			videoId.innerHTML = "<a href='https://www.youtube.com/watch?v=" + item.videoId + "'>" + item.videoId + "</a>";
+
+			row.appendChild(videoId);
+
+			const realTitle = item.title.replace(/\[[0-9]+\]/, "").replace(/\(.+\)/, "").replace("†", "");
+
+			//console.log(realTitle);
+
+			const finder = document.createElement("td");
+
+			const findResult = playResult.find(data => data.TITLE == realTitle);
+
+			let type = "";
+
+			if(findResult){
+				if(item.title.includes("†")){
+					if(findResult.SPL && findResult.SPL.MV){
+						finder.innerText = "済";
+						type = "済";
+						row.append(finder);
+					}else{
+						type = "未";
+						finder.innerHTML = "<a id='" + item.videoId + "' name='" + realTitle + "' type='SPL' href='javascript:void(0);' onclick='save();'>未</a>";
+						row.append(finder);
+						const chkbox = document.createElement("td");
+						chkbox.innerHTML = "<input name='bulk' type='checkbox' value='" + realTitle + "|SPL|" + item.videoId + "'>"
+						row.appendChild(chkbox);
+					}
+				}else{
+					if(findResult.SPA && findResult.SPA.MV){
+						finder.innerText = "済";
+						type = "済";
+						row.append(finder);
+					}else{
+						type = "未";
+						finder.innerHTML = "<a id='" + item.videoId + "' name='" + realTitle + "' type='SPA' href='javascript:void(0);' onclick='save();'>未</a>";
+						row.append(finder);
+						const chkbox = document.createElement("td");
+						chkbox.innerHTML = "<input name='bulk' type='checkbox' value='" + realTitle + "|SPA|" + item.videoId + "'>"
+						row.appendChild(chkbox);
+					}
+				}
+			}else{
+				finder.innerText = "×";
+				type = "×";
+				row.append(finder);
+			}
+
+			if(document.getElementById("dispFinishChg").checked && type == "済")continue;
+			if(document.getElementById("dispNoDataChg").checked && type == "×")continue;
+			if(document.getElementById("dispRndChg").checked && !item.title.includes("RANDOM"))continue;
+			dt.appendChild(row);
+		}
+	}
+
+	function sortFunc(a, b){
+		if(a.title < b.title){
+			return 1;
+		}else if(a.title > b.title){
+			return -1;
+		}
+		return 0;
+	}
+
+
+	/**
+	 * 保存処理
+	 */
+	function save(){
+		console.log(event.target.name);
+		console.log(event.target.type);
+		console.log(event.target.id);
+		try{
+			// 保存用にデータを成型し、Google SpreadSheet更新
+			fetch(
+				gsendpoint + "?id=ST-R",
+				{
+					method:"POST",
+					mode:"no-cors",
+					headers:{'Content-Type':'application/json'},
+					body:JSON.stringify([{
+						TITLE:event.target.name,
+						TYPE:event.target.type,
+						MV:"https://www.youtube.com/watch?v=" + event.target.id
+					}])
+				}
+			).
+			then(data => {
+				console.log("save finished.");
+				localStorage.removeItem('playResult');
+				getPlayResult();
+			});
+		}catch(e){
+			console.log("ERROR:" + e.message);
+		}
+	}
+
+	function bulksave(){
+		const chkboxes = document.getElementsByName("bulk");
+		const updateList = new Array();
+		for(const chkbox of chkboxes){
+			if(chkbox.checked){
+				const inputData = chkbox.value.split("|");
+				updateList.push({
+					TITLE:inputData[0],
+					TYPE:inputData[1],
+					MV:"https://www.youtube.com/watch?v=" + inputData[2]
+				});
+			}
+		}
+		console.log(updateList);
+		try{
+			// 保存用にデータを成型し、Google SpreadSheet更新
+			fetch(
+				gsendpoint + "?id=ST-R",
+				{
+					method:"POST",
+					mode:"no-cors",
+					headers:{'Content-Type':'application/json'},
+					body:JSON.stringify(updateList)
+				}
+			).
+			then(data => {
+				console.log("save finished.");
+				localStorage.removeItem('playResult');
+				getPlayResult();
+			});
+		}catch(e){
+			console.log("ERROR:" + e.message);
+		}
+	}
+</script>
+	<body onload="init();">
+		<button type="button" onclick="localStorage.removeItem('playlist');">Youtubeデータクリア</button>
+		<button type="button" onclick="localStorage.removeItem('musicData');">曲データクリア</button>
+		<button type="button" onclick="localStorage.removeItem('playResult');">プレイリザルトクリア</button>
+		<button type="button" onclick="bulksave();">バルクアップデート</button>
+		<input id="dispFinishChg" type="checkbox" onchange="displayData();">済を除外
+		<input id="dispNoDataChg" type="checkbox" onchange="displayData();">×を除外
+		<input id="dispRndChg" type="checkbox" onchange="displayData();">乱以外除外
+		<table id="dt">
+		</table>
+	</body>
+</html>
+
