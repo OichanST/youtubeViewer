@@ -157,15 +157,20 @@
 
 			row.appendChild(title);
 
+			const realTitle = getTitle(item.title);
+
+			const cell = document.createElement("td");
+			
+			cell.innerText = realTitle;
+			
+			row.appendChild(cell);
+
 			const videoId = document.createElement("td");
 
-			videoId.innerHTML = "<a href='https://www.youtube.com/watch?v=" + item.videoId + "'>" + item.videoId + "</a>";
+			videoId.innerHTML = "<a target='_blank' href='https://www.youtube.com/watch?v=" + item.videoId + "'>" + item.videoId + "</a>";
 
 			row.appendChild(videoId);
 
-			const realTitle = item.title.replace(/\[[0-9]+\]/, "").replace(/\(.+\)/, "").replace("Åı", "");
-
-			//console.log(realTitle);
 
 			const finder = document.createElement("td");
 
@@ -212,6 +217,24 @@
 			if(document.getElementById("dispRndChg").checked && !item.title.includes("RANDOM"))continue;
 			dt.appendChild(row);
 		}
+	}
+
+	function getTitle(title){
+
+		let ret = title.replace(/\[[0-9]+\]/, "").replace("Åı", "");
+
+		
+		for(let i = ret.length; i >= 0; i--){
+			//console.log("Åô" + ret.substring(i, i + 1));
+			if(ret.substring(i, i + 1) == "("){
+				
+				ret = ret.substring(0, i);
+				break;
+			}
+
+		}
+
+		return ret;
 	}
 
 	function sortFunc(a, b){
