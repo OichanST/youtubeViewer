@@ -195,7 +195,7 @@ function displayData(){
 				// レジェンダリアデータに動画URL指定がされている場合
 				if(findResult.SPL && findResult.SPL.MV){
 					// 連携済
-					finder.innerText = "済";
+					finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPL' href='javascript:void(0);' onclick='save();'>済</a>";
 					// 検出結果にも退避
 					type = "済";
 					// 行にセル追加
@@ -224,7 +224,7 @@ function displayData(){
 				// アナザーデータに動画URLが指定されている場合
 				if(findResult.SPA && findResult.SPA.MV){
 					// 連携済
-					finder.innerText = "済";
+					finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPA' href='javascript:void(0);' onclick='save();'>済</a>";
 					// 検出結果にも退避
 					type = "済";
 					// 行にセル追加
@@ -262,6 +262,8 @@ function displayData(){
 			blankCell.innerHTML = "&nbsp;";
 			row.appendChild(blankCell);
 		}
+
+		if(document.getElementById("exAC").checked && item.title.startsWith("AC"))continue;
 		// 「済を除外」にチェックされていて検出結果が済（連携済）の場合、表示しない（表示領域に行を追加する処理をスキップ）
 		if(document.getElementById("exConnected").checked && type == "済")continue;
 		// 「×を除外」にチェックされていて検出結果が×（未検出）の場合、表示しない（表示領域に行を追加する処理をスキップ）

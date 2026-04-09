@@ -1,5 +1,6 @@
 <html>
 	<head>
+		<title>Youtube動画ビュワー</title>
 		<link rel="stylesheet" href="./style.css">
 		<script type="text/javascript" src="./script.js"></script>
 	</head>
@@ -7,13 +8,14 @@
 		<div id="spinner" class="container">
 			<div class="spinner"></div>
 		</div>
-		<select id="user">
+		<select id="user" onchange="init();">
 			<option value="ST">ST</option>
 			<option value="ST-R">ST-R</option>
 		</select>
 		<button type="button" onclick="localStorage.removeItem('playlist');init();">Youtubeデータ再取得</button>
 		<button type="button" onclick="localStorage.removeItem(userId);init();">プレイリザルト再取得</button>
 		<button type="button" onclick="bulksave();">バルクアップデート</button>
+		<label><input id="exAC" type="checkbox" onchange="displayData();">ACを除外</label>
 		<label><input id="exConnected" type="checkbox" onchange="displayData();">済を除外</label>
 		<label><input id="exNoData" type="checkbox" onchange="displayData();">×を除外</label>
 		<label><input id="exNotRandom" type="checkbox" onchange="displayData();">乱以外除外</label>
