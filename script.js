@@ -6,16 +6,16 @@ const apiKey = "AIzaSyAcvkG759mbzrz-Xkoh0YdwSybBgwYeybA";
 const gsendpoint = "https://script.google.com/macros/s/AKfycbxIaQ6fbvHINLb4pdBMsrXVcWnpeRGsa9jqwUXQNtKQWNh_SbA5kTHUQ1o7_NvpMGF4Hg/exec";
 // プレイリザルトデータ(by Google Spread Sheet)
 let playResult;
-
+// ユーザID
 let userId;
 
 /**
  * 初期表示処理
  */
 function init(){
-
+	// スピナー表示
 	document.getElementById("spinner").style.display = "flex";
-	
+	// ユーザID取得
 	userId = document.getElementById("user").value;
 	
 	console.log("init start." + userId);
@@ -139,8 +139,6 @@ function setData(data){
 function displayData(){
 
 	console.log("displayData start.");
-	
-	console.log(playResult);
 	// 出力領域を取得
 	const dt = document.getElementById("dt");
 	// 出力をリセット
@@ -162,28 +160,43 @@ function displayData(){
 			e.currentTarget.style.color = "black";
 			e.currentTarget.style.backgroundColor = "white";
 		});
-		// タイトル表示セル生成
-		const title = document.createElement("td");
-		// タイトル設定
-		title.innerText = item.title;
-		// 行にセル追加
-		row.appendChild(title);
+		
+		const lv = getLv(item.title);
+		
+		const lvFilter = document.getElementById("lvFilter").value;
+		
+		if(lvFilter != "" && lv != lvFilter){
+			continue;
+		}
+		
+		const optFilter = document.getElementById("optionFilter").value;
+		
+		if(optFilter == "notR"){
+			if(item.title.includes("RANDOM")){
+				continue;
+			}
+		}
+		
+		if(optFilter == "Ronly"){
+			if(!item.title.includes("RANDOM")){
+				continue;
+			}
+		}
+		
+		// タイトル表示セル追加
+		addTextCell(row, item.title);
 		// タイトル編集　※[LV]曲名(オプション指定)+αの形式から曲名のみ抽出
 		const realTitle = getTitle(item.title);
-		// セル生成
-		const cell = document.createElement("td");
 		// 編集後の曲名を追加
-		cell.innerText = realTitle;
-		// 行にセル追加
-		row.appendChild(cell);
-		// YoutubeのvideoIdセル生成
-		const videoId = document.createElement("td");
-		// リンクに編集してセルに追加
-		videoId.innerHTML = "<a target='_blank' href='https://www.youtube.com/watch?v=" + item.videoId + "'>" + item.videoId + "</a>";
-		// 行にセル追加
-		row.appendChild(videoId);
+		addTextCell(row, realTitle);
+		// YoutubeのvideoIdセル追加
+		addHtmlCell(row, "<a target='_blank' href='https://www.youtube.com/watch?v=" + item.videoId + "'>" + item.videoId + "</a>");
+		// 編集ページへのリンク追加
+		addHtmlCell(row, "<a target='_blank' href='https://studio.youtube.com/video/" + item.videoId + "'>編集</a>", "text-align:center;");
 		// Google Spread Sheetデータとのマッチング結果表示セル生成
 		const finder = document.createElement("td");
+		
+		finder.style = "text-align:center;";
 		// プレイリザルトデータとのマッチング
 		const findResult = playResult.find(data => data.TITLE == realTitle);
 		// 検出結果
@@ -201,9 +214,7 @@ function displayData(){
 					// 行にセル追加
 					row.append(finder);
 					// 行に空セル追加
-					const blankCell = document.createElement("td");
-					blankCell.innerHTML = "&nbsp;";
-					row.appendChild(blankCell);
+					addHtmlCell(row, "&nbsp;");
 				// 動画URL指定されていない場合
 				}else{
 					// 検出結果＝未連携
@@ -212,12 +223,8 @@ function displayData(){
 					finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPL' href='javascript:void(0);' onclick='save();'>未</a>";
 					// 行にセル追加
 					row.append(finder);
-					// バルク処理用のチェックボックスセル準備
-					const chkbox = document.createElement("td");
-					// バルク処理用のチェックボックスを追加　※'はHTMLエスケープする
-					chkbox.innerHTML = "<input name='bulk' type='checkbox' value='" + escapeSingleQuote(realTitle) + ",SPL," + item.videoId + "'>"
-					// 行にセル追加
-					row.appendChild(chkbox);
+					// バルク処理用のチェックボックスセル追加 ※'はHTMLエスケープする
+					addHtmlCell(row, "<input name='bulk' type='checkbox' value='" + escapeSingleQuote(realTitle) + ",SPL," + item.videoId + "'>", "text-align:center;");
 				}
 			// タイトルに†が含まれていない場合
 			}else{
@@ -230,9 +237,7 @@ function displayData(){
 					// 行にセル追加
 					row.append(finder);
 					// 行に空セル追加
-					const blankCell = document.createElement("td");
-					blankCell.innerHTML = "&nbsp;";
-					row.appendChild(blankCell);
+					addHtmlCell(row, "&nbsp;", "width:5%;");
 				// 動画URL指定されていない場合
 				}else{
 					// 検出結果＝未連携
@@ -241,12 +246,8 @@ function displayData(){
 					finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPA' href='javascript:void(0);' onclick='save();'>未</a>";
 					// 行にセル追加
 					row.append(finder);
-					// バルク処理用のチェックボックスセル準備
-					const chkbox = document.createElement("td");
-					// バルク処理用のチェックボックスを追加　※'はHTMLエスケープする
-					chkbox.innerHTML = "<input name='bulk' type='checkbox' value='" + escapeSingleQuote(realTitle) + ",SPA," + item.videoId + "'>";
-					// 行にセル追加
-					row.appendChild(chkbox);
+					// バルク処理用のチェックボックスセル追加 ※'はHTMLエスケープする
+					addHtmlCell(row, "<input name='bulk' type='checkbox' value='" + escapeSingleQuote(realTitle) + ",SPA," + item.videoId + "'>", "text-align:center;");
 				}
 			}
 		// 同名のプレイリザルトなし
@@ -258,9 +259,7 @@ function displayData(){
 			// 行にセル追加
 			row.append(finder);
 			// 行に空セル追加
-			const blankCell = document.createElement("td");
-			blankCell.innerHTML = "&nbsp;";
-			row.appendChild(blankCell);
+			addHtmlCell(row, "&nbsp;");
 		}
 
 		if(document.getElementById("exAC").checked && item.title.startsWith("AC"))continue;
@@ -268,16 +267,44 @@ function displayData(){
 		if(document.getElementById("exConnected").checked && type == "済")continue;
 		// 「×を除外」にチェックされていて検出結果が×（未検出）の場合、表示しない（表示領域に行を追加する処理をスキップ）
 		if(document.getElementById("exNoData").checked && type == "×")continue;
-		// 「乱以外除外」にチェックされていてタイトルにRANDOMの文字が含まれていない場合、表示しない（表示領域に行を追加する処理をスキップ）
-		if(document.getElementById("exNotRandom").checked && !item.title.includes("RANDOM"))continue;
-		// 「乱を除外」にチェックされていてタイトルにRANDOMの文字が含まれている場合、表示しない（表示領域に行を追加する処理をスキップ）
-		if(document.getElementById("exRandom").checked && item.title.includes("RANDOM"))continue;
 		// 表示領域に行を追加
 		dt.appendChild(row);
 	}
 	
 	document.getElementById("spinner").style.display = "none";
 }
+
+function addTextCell(row, text, style){
+	const cell = document.createElement("td");
+	
+	cell.innerText = text;
+	
+	if(style){
+		cell.style = style;
+	}
+	
+	row.appendChild(cell);
+}
+
+function addHtmlCell(row, html, style){
+	const cell = document.createElement("td");
+	
+	cell.innerHTML = html;
+	
+	if(style){
+		cell.style = style;
+	}
+	
+	row.appendChild(cell);
+}
+function addHeaderCell(row, text){
+	const cell = document.createElement("th");
+	
+	cell.innerText = text;
+	
+	row.appendChild(cell);
+}
+
 /**
  * タイトルから曲名を抽出
  */
@@ -296,6 +323,16 @@ function getTitle(title){
 	}
 	// 結果返却
 	return ret;
+}
+
+function getLv(title){
+	const find = title.match(/^\[[0-9]+\]/);
+	
+	if(find != null){
+		return find[0].substring(1, find[0].length - 1);;
+	}
+	
+	return null;
 }
 
 /**

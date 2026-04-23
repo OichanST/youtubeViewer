@@ -4,23 +4,66 @@
 		<link rel="stylesheet" href="./style.css">
 		<script type="text/javascript" src="./script.js"></script>
 	</head>
-	<body onload="init();">
+	<body onload="init();" style="margin:0px;padding:0px;">
 		<div id="spinner" class="container">
 			<div class="spinner"></div>
 		</div>
-		<select id="user" onchange="init();">
-			<option value="ST">ST</option>
-			<option value="ST-R">ST-R</option>
-		</select>
-		<button type="button" onclick="localStorage.removeItem('playlist');init();">Youtubeデータ再取得</button>
-		<button type="button" onclick="localStorage.removeItem(userId);init();">プレイリザルト再取得</button>
-		<button type="button" onclick="bulksave();">バルクアップデート</button>
-		<label><input id="exAC" type="checkbox" onchange="displayData();">ACを除外</label>
-		<label><input id="exConnected" type="checkbox" onchange="displayData();">済を除外</label>
-		<label><input id="exNoData" type="checkbox" onchange="displayData();">×を除外</label>
-		<label><input id="exNotRandom" type="checkbox" onchange="displayData();">乱以外除外</label>
-		<label><input id="exRandom" type="checkbox" onchange="displayData();">乱を除外</label>
-		<table id="dt" style="margin-top:1rem;">
+		<div style="width:100%;position:sticky;top:0px;background-color:white;">
+			<div style="padding:0.5rem;">
+				<div>
+					<select id="user" onchange="init();">
+						<option value="ST">ST</option>
+						<option value="ST-R">ST-R</option>
+					</select>
+					<button type="button" onclick="localStorage.removeItem('playlist');init();">Youtubeデータ再取得</button>
+					<button type="button" onclick="localStorage.removeItem(userId);init();">プレイリザルト再取得</button>
+					<button type="button" onclick="bulksave();">バルクアップデート</button>
+					<label><input id="exAC" type="checkbox" onchange="displayData();">ACを除外</label>
+					<label><input id="exConnected" type="checkbox" onchange="displayData();">済を除外</label>
+					<label><input id="exNoData" type="checkbox" onchange="displayData();">×を除外</label>
+				</div>
+				<div style="display:flex;justify-content:flex-start;">
+					<div>
+						<div>
+							LV指定
+						</div>
+						<div>
+							<select id="lvFilter" onchange="displayData();">
+								<option value="">指定なし</option>
+								<option value="8">8</option>
+								<option value="9">9</option>
+								<option value="10">10</option>
+								<option value="11">11</option>
+								<option value="12">12</option>
+							</select>
+						</div>
+					</div>
+					<div style="margin-left:0.5rem;">
+						<div>
+							オプション指定
+						</div>
+						<div>
+							<select id="optionFilter" onchange="displayData();">
+								<option value="">指定なし</option>
+								<option value="notR">乱以外</option>
+								<option value="Ronly">乱のみ</option>
+							</select>
+						</div>
+					</div>
+				</div>
+			</div>
+			<table style="border-top:1px solid black;">
+				<tr>
+					<th>動画名</th>
+					<th>曲名</th>
+					<th>VIDEO ID</th>
+					<th>編集</th>
+					<th>状態</th>
+					<th>Bulk</th>
+				</tr>
+			</table>
+		</div>
+		<table id="dt" style="">
 		</table>
 	</body>
 </html>

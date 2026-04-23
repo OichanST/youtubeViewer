@@ -1,10 +1,42 @@
 table{
+	width:100%;
+	font-size:0.9rem;
 	border-collapse:collapse;
 }
-table td{
-	border:1px solid black;
+table th{
+	background-color:rgba(200,200,200,0.5);
+}
+
+table td,table th{
+	border-left:1px solid black;
+	border-right:1px solid black;
+	border-bottom:1px solid black;
 	padding-left:0.25rem;
 	padding-right:0.25rem;
+}
+
+table th:nth-child(1), table td:nth-child(1){
+	width:38.5%;
+}
+
+table th:nth-child(2), table td:nth-child(2){
+	width:38.5%;
+}
+
+table th:nth-child(3), table td:nth-child(3){
+	width:10%;
+}
+
+table th:nth-child(4), table td:nth-child(4){
+	width:5%;
+}
+
+table th:nth-child(5), table td:nth-child(5){
+	width:4%;
+}
+
+table th:nth-child(6), table td:nth-child(6){
+	width:4%;
 }
 
 select{
