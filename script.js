@@ -207,14 +207,26 @@ function displayData(){
 			if(item.title.includes("†")){
 				// レジェンダリアデータに動画URL指定がされている場合
 				if(findResult.SPL && findResult.SPL.MV){
-					// 連携済
-					finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPL' href='javascript:void(0);' onclick='save();'>済</a>";
-					// 検出結果にも退避
-					type = "済";
+					// 対象の動画のURLになっている場合
+					if(findResult.SPL.MV.includes(item.videoId)){
+						// 検出結果＝済
+						type = "済";
+						finder.innerText = type;
+					// なってない場合
+					}else{
+						// 検出結果＝他
+						type = "他";
+						finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPL' href='javascript:void(0);' onclick='save();'>" + type + "</a>";
+					}
 					// 行にセル追加
 					row.append(finder);
-					// 行に空セル追加
-					addHtmlCell(row, "&nbsp;");
+					if(type == "済"){
+						// 行に空セル追加
+						addHtmlCell(row, "&nbsp;");
+					}else{
+						// バルク処理用のチェックボックスセル追加 ※'はHTMLエスケープする
+						addHtmlCell(row, "<input name='bulk' type='checkbox' value='" + escapeSingleQuote(realTitle) + ",SPL," + item.videoId + "'>", "text-align:center;");
+					}
 				// 動画URL指定されていない場合
 				}else{
 					// 検出結果＝未連携
@@ -231,13 +243,24 @@ function displayData(){
 				// アナザーデータに動画URLが指定されている場合
 				if(findResult.SPA && findResult.SPA.MV){
 					// 連携済
-					finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPA' href='javascript:void(0);' onclick='save();'>済</a>";
-					// 検出結果にも退避
-					type = "済";
+					if(findResult.SPA.MV.includes(item.videoId)){
+						// 検出結果にも退避
+						type = "済";
+						finder.innerText = type;
+					}else{
+						// 検出結果にも退避
+						type = "他";
+						finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPA' href='javascript:void(0);' onclick='save();'>" + type + "</a>";
+					}
 					// 行にセル追加
 					row.append(finder);
-					// 行に空セル追加
-					addHtmlCell(row, "&nbsp;", "width:5%;");
+					if(type == "済"){
+						// 行に空セル追加
+						addHtmlCell(row, "&nbsp;", "width:5%;");
+					}else{
+						// バルク処理用のチェックボックスセル追加 ※'はHTMLエスケープする
+						addHtmlCell(row, "<input name='bulk' type='checkbox' value='" + escapeSingleQuote(realTitle) + ",SPA," + item.videoId + "'>", "text-align:center;");
+					}
 				// 動画URL指定されていない場合
 				}else{
 					// 検出結果＝未連携
@@ -309,8 +332,14 @@ function addHeaderCell(row, text){
  * タイトルから曲名を抽出
  */
 function getTitle(title){
+
+	let ret = title;
+
+	if(title.startsWith("AC")){
+		ret = ret.substring(2);
+	}
 	// [LV]部分、及び†表記を除去
-	let ret = title.replace(/\[[0-9]+\]/, "").replace("†", "");
+	ret = ret.replace(/\[[0-9]+\]/, "").replace("†", "");
 	// 文字列の最後尾から見ていく
 	for(let i = ret.length; i >= 0; i--){
 		// (の文字があった場合
