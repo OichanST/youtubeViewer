@@ -99,6 +99,7 @@ function getNextList(playlistId, pageToken){
 	console.log("getNextList start.");
 	// Youtubeにアップロードされている動画リストの取得 条件：プレイリストID+ページトークン
 	fetch("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=" + playlistId + "&pageToken=" + pageToken + "&key=" + apiKey + "&maxResults=50").
+	
 	then(response => response.json()).
 	then(data => {
 		// localStorageにデータを保存
@@ -126,7 +127,8 @@ function setData(data){
 		// 成形してリストに追加
 		storageList.push({
 			title:item.snippet.title,
-			videoId:item.snippet.resourceId.videoId
+			videoId:item.snippet.resourceId.videoId,
+			timestamp:item.snippet.publishedAt
 		});
 	}
 	// リストを書き戻す
@@ -189,6 +191,8 @@ function displayData(){
 		const realTitle = getTitle(item.title);
 		// 編集後の曲名を追加
 		addTextCell(row, realTitle);
+		
+		addTextCell(row, toJST(item.timestamp), "text-align:center;");
 		// YoutubeのvideoIdセル追加
 		addHtmlCell(row, "<a target='_blank' href='https://www.youtube.com/watch?v=" + item.videoId + "'>" + item.videoId + "</a>");
 		// 編集ページへのリンク追加
@@ -297,6 +301,25 @@ function displayData(){
 	document.getElementById("spinner").style.display = "none";
 }
 
+function toJST(timeString){
+
+	if(!timeString)return "";
+
+	const utc = new Date(timeString);
+	
+	const jst = new Intl.DateTimeFormat("ja-JP", {
+		timeZone:"Asia/Tokyo",
+		year:"numeric",
+		month:"2-digit",
+		day:"2-digit",
+		hour:"2-digit",
+		minute:"2-digit",
+		second:"2-digit"
+	}).format(utc);
+	
+	return jst;
+}
+
 function addTextCell(row, text, style){
 	const cell = document.createElement("td");
 	
@@ -386,10 +409,48 @@ function sortFunc(a, b){
 		return 1;
 	}
 	// タイトル文字列によるソート
-	if(a.title < b.title){
+	const aTitle = getTitle(a.title);
+	const bTitle = getTitle(b.title);
+	if(aTitle < bTitle){
 		return -1;
-	}else if(a.title > b.title){
+	}else if(aTitle > bTitle){
 		return 1;
+	}else{
+		if(!a.title.includes("†") && b.title.includes("†")){
+			return -1;
+		}else if(a.title.includes("†") && !b.title.includes("†")){
+			return 1;
+		}
+		let aSortWeight = 2;
+		let bSortWeight = 2;
+		
+		if(a.title.includes("EASY")){
+			aSortWeight = 1;
+		}
+		if(a.title.includes("HARD")){
+			aSortWeight = 3;
+		}
+		if(a.title.includes("EXH")){
+			aSortWeight = 4;
+		}
+		if(a.title.includes("FC")){
+			aSortWeight = 5;
+		}
+		
+		if(b.title.includes("EASY")){
+			bSortWeight = 1;
+		}
+		if(b.title.includes("HARD")){
+			bSortWeight = 3;
+		}
+		if(b.title.includes("EXH")){
+			bSortWeight = 4;
+		}
+		if(b.title.includes("FC")){
+			bSortWeight = 5;
+		}
+		
+		return aSortWeight - bSortWeight;
 	}
 	// 同LV、且つ同名なら同値
 	return 0;
