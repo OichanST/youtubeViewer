@@ -149,6 +149,68 @@ function displayData(){
 	const storageList = JSON.parse(localStorage.getItem("playlist"));
 	// ソートする
 	storageList.sort(sortFunc);
+	
+	// 他のパターンを含む曲名リスト
+	const hasOtherList = new Array();
+	// 他のみを除外にチェックされている場合
+	if(document.getElementById("exConnected").checked){
+		// 取得結果ループ
+		for(const item of storageList){
+		
+			const lv = getLv(item.title);
+			
+			const lvFilter = document.getElementById("lvFilter").value;
+			
+			if(lvFilter != "" && lv != lvFilter){
+				continue;
+			}
+			
+			const optFilter = document.getElementById("optionFilter").value;
+			
+			if(optFilter == "notR"){
+				if(item.title.includes("RANDOM")){
+					continue;
+				}
+			}
+			
+			if(optFilter == "Ronly"){
+				if(!item.title.includes("RANDOM")){
+					continue;
+				}
+			}
+			// タイトル編集　※[LV]曲名(オプション指定)+αの形式から曲名のみ抽出
+			const realTitle = getTitle(item.title);
+			// プレイリザルトデータとのマッチング
+			const findResult = playResult.find(data => data.TITLE == realTitle);
+			// 同名のプレイリザルトあり
+			if(findResult){
+				// タイトルに†が含まれている場合
+				if(item.title.includes("†")){
+					// レジェンダリアデータに動画URL指定がされている場合
+					if(findResult.SPL && findResult.SPL.MV){
+						// 対象の動画のURLになっている場合
+						if(findResult.SPL.MV.includes(item.videoId)){
+						// なってない場合
+						}else{
+							hasOtherList.push(realTitle);
+						}
+					}
+				// タイトルに†が含まれていない場合
+				}else{
+					// アナザーデータに動画URLが指定されている場合
+					if(findResult.SPA && findResult.SPA.MV){
+						// 連携済
+						if(findResult.SPA.MV.includes(item.videoId)){
+						}else{
+							hasOtherList.push(realTitle);
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	
 	// 取得結果ループ
 	for(const item of storageList){
 		// 行生成
@@ -288,10 +350,10 @@ function displayData(){
 			// 行に空セル追加
 			addHtmlCell(row, "&nbsp;");
 		}
-
+		// 「ACを除外」にチェックされていてタイトルがACから始まってる場合、表示しない（表示領域に行を追加する処理をスキップ）
 		if(document.getElementById("exAC").checked && item.title.startsWith("AC"))continue;
-		// 「済を除外」にチェックされていて検出結果が済（連携済）の場合、表示しない（表示領域に行を追加する処理をスキップ）
-		if(document.getElementById("exConnected").checked && type == "済")continue;
+		// 「済のみを除外」にチェックされていて検出結果が済（連携済）の場合、且つ他が同名の曲に存在しない場合、表示しない（表示領域に行を追加する処理をスキップ）
+		if(document.getElementById("exConnected").checked && type == "済" && !hasOtherList.includes(realTitle))continue;
 		// 「×を除外」にチェックされていて検出結果が×（未検出）の場合、表示しない（表示領域に行を追加する処理をスキップ）
 		if(document.getElementById("exNoData").checked && type == "×")continue;
 		// 表示領域に行を追加
