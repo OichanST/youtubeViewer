@@ -156,6 +156,7 @@ function getNextList(playlistId, pageToken, accumulated){
 	console.log("getNextList start.");
 	// Youtubeにアップロードされている動画リストの取得 条件：プレイリストID+ページトークン
 	fetch("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=" + playlistId + "&pageToken=" + pageToken + "&key=" + apiKey + "&maxResults=50").
+	
 	then(response => response.json()).
 	then(async data => {
 		// メモリ上のリストに追加(IndexedDBへはまだ書き込まない)
@@ -180,7 +181,8 @@ function appendData(accumulated, data){
 	for(const item of data.items){
 		accumulated.push({
 			title:item.snippet.title,
-			videoId:item.snippet.resourceId.videoId
+			videoId:item.snippet.resourceId.videoId,
+			timestamp:item.snippet.publishedAt
 		});
 	}
 }
@@ -199,6 +201,68 @@ async function displayData(){
 	const storageList = await idbGet("playlist") || [];
 	// ソートする
 	storageList.sort(sortFunc);
+	
+	// 他のパターンを含む曲名リスト
+	const hasOtherList = new Array();
+	// 他のみを除外にチェックされている場合
+	if(document.getElementById("exConnected").checked){
+		// 取得結果ループ
+		for(const item of storageList){
+		
+			const lv = getLv(item.title);
+			
+			const lvFilter = document.getElementById("lvFilter").value;
+			
+			if(lvFilter != "" && lv != lvFilter){
+				continue;
+			}
+			
+			const optFilter = document.getElementById("optionFilter").value;
+			
+			if(optFilter == "notR"){
+				if(item.title.includes("RANDOM")){
+					continue;
+				}
+			}
+			
+			if(optFilter == "Ronly"){
+				if(!item.title.includes("RANDOM")){
+					continue;
+				}
+			}
+			// タイトル編集　※[LV]曲名(オプション指定)+αの形式から曲名のみ抽出
+			const realTitle = getTitle(item.title);
+			// プレイリザルトデータとのマッチング
+			const findResult = playResult.find(data => data.TITLE == realTitle);
+			// 同名のプレイリザルトあり
+			if(findResult){
+				// タイトルに†が含まれている場合
+				if(item.title.includes("†")){
+					// レジェンダリアデータに動画URL指定がされている場合
+					if(findResult.SPL && findResult.SPL.MV){
+						// 対象の動画のURLになっている場合
+						if(findResult.SPL.MV.includes(item.videoId)){
+						// なってない場合
+						}else{
+							hasOtherList.push(realTitle);
+						}
+					}
+				// タイトルに†が含まれていない場合
+				}else{
+					// アナザーデータに動画URLが指定されている場合
+					if(findResult.SPA && findResult.SPA.MV){
+						// 連携済
+						if(findResult.SPA.MV.includes(item.videoId)){
+						}else{
+							hasOtherList.push(realTitle);
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	
 	// 取得結果ループ
 	for(const item of storageList){
 		// 行生成
@@ -241,6 +305,8 @@ async function displayData(){
 		const realTitle = getTitle(item.title);
 		// 編集後の曲名を追加
 		addTextCell(row, realTitle);
+		
+		addTextCell(row, toJST(item.timestamp), "text-align:center;");
 		// YoutubeのvideoIdセル追加
 		addHtmlCell(row, "<a target='_blank' href='https://www.youtube.com/watch?v=" + item.videoId + "'>" + item.videoId + "</a>");
 		// 編集ページへのリンク追加
@@ -259,14 +325,26 @@ async function displayData(){
 			if(item.title.includes("†")){
 				// レジェンダリアデータに動画URL指定がされている場合
 				if(findResult.SPL && findResult.SPL.MV){
-					// 連携済
-					finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPL' href='javascript:void(0);' onclick='save();'>済</a>";
-					// 検出結果にも退避
-					type = "済";
+					// 対象の動画のURLになっている場合
+					if(findResult.SPL.MV.includes(item.videoId)){
+						// 検出結果＝済
+						type = "済";
+						finder.innerText = type;
+					// なってない場合
+					}else{
+						// 検出結果＝他
+						type = "他";
+						finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPL' href='javascript:void(0);' onclick='save();'>" + type + "</a>";
+					}
 					// 行にセル追加
 					row.append(finder);
-					// 行に空セル追加
-					addHtmlCell(row, "&nbsp;");
+					if(type == "済"){
+						// 行に空セル追加
+						addHtmlCell(row, "&nbsp;");
+					}else{
+						// バルク処理用のチェックボックスセル追加 ※'はHTMLエスケープする
+						addHtmlCell(row, "<input name='bulk' type='checkbox' value='" + escapeSingleQuote(realTitle) + ",SPL," + item.videoId + "'>", "text-align:center;");
+					}
 				// 動画URL指定されていない場合
 				}else{
 					// 検出結果＝未連携
@@ -283,13 +361,24 @@ async function displayData(){
 				// アナザーデータに動画URLが指定されている場合
 				if(findResult.SPA && findResult.SPA.MV){
 					// 連携済
-					finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPA' href='javascript:void(0);' onclick='save();'>済</a>";
-					// 検出結果にも退避
-					type = "済";
+					if(findResult.SPA.MV.includes(item.videoId)){
+						// 検出結果にも退避
+						type = "済";
+						finder.innerText = type;
+					}else{
+						// 検出結果にも退避
+						type = "他";
+						finder.innerHTML = "<a id='" + item.videoId + "' name='" + escapeSingleQuote(realTitle) + "' type='SPA' href='javascript:void(0);' onclick='save();'>" + type + "</a>";
+					}
 					// 行にセル追加
 					row.append(finder);
-					// 行に空セル追加
-					addHtmlCell(row, "&nbsp;", "width:5%;");
+					if(type == "済"){
+						// 行に空セル追加
+						addHtmlCell(row, "&nbsp;", "width:5%;");
+					}else{
+						// バルク処理用のチェックボックスセル追加 ※'はHTMLエスケープする
+						addHtmlCell(row, "<input name='bulk' type='checkbox' value='" + escapeSingleQuote(realTitle) + ",SPA," + item.videoId + "'>", "text-align:center;");
+					}
 				// 動画URL指定されていない場合
 				}else{
 					// 検出結果＝未連携
@@ -313,10 +402,10 @@ async function displayData(){
 			// 行に空セル追加
 			addHtmlCell(row, "&nbsp;");
 		}
-
+		// 「ACを除外」にチェックされていてタイトルがACから始まってる場合、表示しない（表示領域に行を追加する処理をスキップ）
 		if(document.getElementById("exAC").checked && item.title.startsWith("AC"))continue;
-		// 「済を除外」にチェックされていて検出結果が済（連携済）の場合、表示しない（表示領域に行を追加する処理をスキップ）
-		if(document.getElementById("exConnected").checked && type == "済")continue;
+		// 「済のみを除外」にチェックされていて検出結果が済（連携済）の場合、且つ他が同名の曲に存在しない場合、表示しない（表示領域に行を追加する処理をスキップ）
+		if(document.getElementById("exConnected").checked && type == "済" && !hasOtherList.includes(realTitle))continue;
 		// 「×を除外」にチェックされていて検出結果が×（未検出）の場合、表示しない（表示領域に行を追加する処理をスキップ）
 		if(document.getElementById("exNoData").checked && type == "×")continue;
 		// 表示領域に行を追加
@@ -324,6 +413,25 @@ async function displayData(){
 	}
 	
 	document.getElementById("spinner").style.display = "none";
+}
+
+function toJST(timeString){
+
+	if(!timeString)return "";
+
+	const utc = new Date(timeString);
+	
+	const jst = new Intl.DateTimeFormat("ja-JP", {
+		timeZone:"Asia/Tokyo",
+		year:"numeric",
+		month:"2-digit",
+		day:"2-digit",
+		hour:"2-digit",
+		minute:"2-digit",
+		second:"2-digit"
+	}).format(utc);
+	
+	return jst;
 }
 
 function addTextCell(row, text, style){
@@ -361,8 +469,14 @@ function addHeaderCell(row, text){
  * タイトルから曲名を抽出
  */
 function getTitle(title){
+
+	let ret = title;
+
+	if(title.startsWith("AC")){
+		ret = ret.substring(2);
+	}
 	// [LV]部分、及び†表記を除去
-	let ret = title.replace(/\[[0-9]+\]/, "").replace("†", "");
+	ret = ret.replace(/\[[0-9]+\]/, "").replace("†", "");
 	// 文字列の最後尾から見ていく
 	for(let i = ret.length; i >= 0; i--){
 		// (の文字があった場合
@@ -409,10 +523,48 @@ function sortFunc(a, b){
 		return 1;
 	}
 	// タイトル文字列によるソート
-	if(a.title < b.title){
+	const aTitle = getTitle(a.title);
+	const bTitle = getTitle(b.title);
+	if(aTitle < bTitle){
 		return -1;
-	}else if(a.title > b.title){
+	}else if(aTitle > bTitle){
 		return 1;
+	}else{
+		if(!a.title.includes("†") && b.title.includes("†")){
+			return -1;
+		}else if(a.title.includes("†") && !b.title.includes("†")){
+			return 1;
+		}
+		let aSortWeight = 2;
+		let bSortWeight = 2;
+		
+		if(a.title.includes("EASY")){
+			aSortWeight = 1;
+		}
+		if(a.title.includes("HARD")){
+			aSortWeight = 3;
+		}
+		if(a.title.includes("EXH")){
+			aSortWeight = 4;
+		}
+		if(a.title.includes("FC")){
+			aSortWeight = 5;
+		}
+		
+		if(b.title.includes("EASY")){
+			bSortWeight = 1;
+		}
+		if(b.title.includes("HARD")){
+			bSortWeight = 3;
+		}
+		if(b.title.includes("EXH")){
+			bSortWeight = 4;
+		}
+		if(b.title.includes("FC")){
+			bSortWeight = 5;
+		}
+		
+		return aSortWeight - bSortWeight;
 	}
 	// 同LV、且つ同名なら同値
 	return 0;
