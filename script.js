@@ -9,22 +9,61 @@ let playResult;
 // ユーザID
 let userId;
 
+// IndexedDB設定(localStorageは容量が小さく、動画数が多いとQuotaExceededErrorになるため使用)
+const idbName = "youtubeViewerDB";
+const idbStore = "kv";
+
+function idbOpen(){
+	return new Promise((resolve, reject) => {
+		const req = indexedDB.open(idbName, 1);
+		req.onupgradeneeded = () => { req.result.createObjectStore(idbStore); };
+		req.onsuccess = () => resolve(req.result);
+		req.onerror = () => reject(req.error);
+	});
+}
+async function idbGet(key){
+	const db = await idbOpen();
+	return new Promise((resolve, reject) => {
+		const req = db.transaction(idbStore, "readonly").objectStore(idbStore).get(key);
+		req.onsuccess = () => resolve(req.result);
+		req.onerror = () => reject(req.error);
+	});
+}
+async function idbSet(key, value){
+	const db = await idbOpen();
+	return new Promise((resolve, reject) => {
+		const tx = db.transaction(idbStore, "readwrite");
+		tx.objectStore(idbStore).put(value, key);
+		tx.oncomplete = () => resolve();
+		tx.onerror = () => reject(tx.error);
+	});
+}
+async function idbRemove(key){
+	const db = await idbOpen();
+	return new Promise((resolve, reject) => {
+		const tx = db.transaction(idbStore, "readwrite");
+		tx.objectStore(idbStore).delete(key);
+		tx.oncomplete = () => resolve();
+		tx.onerror = () => reject(tx.error);
+	});
+}
+
 /**
  * 初期表示処理
  */
-function init(){
+async function init(){
 	// スピナー表示
 	document.getElementById("spinner").style.display = "flex";
 	// ユーザID取得
 	userId = document.getElementById("user").value;
-	
+
 	console.log("init start." + userId);
-	// localStorageからプレイリザルト取得
-	const playResultJson = localStorage.getItem(userId);
+	// IndexedDBからプレイリザルト取得
+	const stored = await idbGet(userId);
 	// 取得できた場合
-	if(playResultJson){
+	if(stored){
 		// ローカル変数に保持
-		playResult = JSON.parse(playResultJson);
+		playResult = stored;
 		// Youtubeチャンネルの検索
 		seekYoutubeChannel();
 	// 取得できなかった場合
@@ -32,11 +71,11 @@ function init(){
 		// Google spreadsheetデータをロードする
 		fetch(gsendpoint + "?type=getPlayResult&id=" + userId).
 		then(response => response.json()).
-		then(data => {
-		
+		then(async data => {
+
 			console.log("playResult loaded.");
-			// localStorageに楽曲データを退避
-			localStorage.setItem(userId, JSON.stringify(data));
+			// IndexedDBに楽曲データを退避
+			await idbSet(userId, data);
 			// ローカル変数に保持
 			playResult = data;
 			// youtubeチャンネルの検索
@@ -46,27 +85,41 @@ function init(){
 }
 
 /**
+ * Youtubeデータの再取得
+ */
+async function reloadPlaylist(){
+	await idbRemove("playlist");
+	init();
+}
+
+/**
+ * プレイリザルトの再取得
+ */
+async function reloadPlayResult(){
+	await idbRemove(userId);
+	init();
+}
+
+/**
  * Youtubeチャンネルの検索
  */
-function seekYoutubeChannel(){
-	// localStorageからYoutubeプレイリストを取得
-	const strJson = localStorage.getItem("playlist");
+async function seekYoutubeChannel(){
+	// IndexedDBからYoutubeプレイリストを取得
+	const stored = await idbGet("playlist");
 	// 取得できた場合
-	if(strJson){
+	if(stored){
 		// 画面出力
 		displayData();
 	// 取得できなかった場合
 	}else{
-		// ローカルストレージデータの初期化
-		localStorage.setItem("playlist", JSON.stringify([]));
 		// Youtubeチャンネル情報を取得
 		fetch("https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=" + youtubeId + "&key=" + apiKey).
 		then(response => response.json()).
 		then(data => {
 			// プレイリストIDの取得
 			const playlistId = data.items[0].contentDetails.relatedPlaylists.uploads;
-			// Youtubeにアップロードされている動画リストの取得
-			getYoutubeList(playlistId);
+			// Youtubeにアップロードされている動画リストの取得(累積用の空配列から開始)
+			getYoutubeList(playlistId, []);
 		});
 	}
 }
@@ -74,19 +127,23 @@ function seekYoutubeChannel(){
 /**
  * Youtubeにアップロードされている動画リストの取得
  */
-function getYoutubeList(playlistId){
+function getYoutubeList(playlistId, accumulated){
 
 	console.log("getYoutubeList start.");
 	// Youtubeにアップロードされている動画リストを取得 条件：プレイリストID
 	fetch("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=" + playlistId + "&key=" + apiKey + "&maxResults=50").
 	then(response => response.json()).
-	then(data => {
-		// localStorageにデータを保存
-		setData(data);
+	then(async data => {
+		// メモリ上のリストに追加(IndexedDBへはまだ書き込まない)
+		appendData(accumulated, data);
 		// 次ページのトークンがある場合
 		if(data.nextPageToken){
 			// 次ページの動画リストの取得
-			getNextList(playlistId, data.nextPageToken);
+			getNextList(playlistId, data.nextPageToken, accumulated);
+		// 次ページが無い場合、ここで初めてIndexedDBへ書き込む
+		}else{
+			await idbSet("playlist", accumulated);
+			displayData();
 		}
 	});
 }
@@ -94,21 +151,22 @@ function getYoutubeList(playlistId){
 /**
  * 次ページの動画リストの取得
  */
-function getNextList(playlistId, pageToken){
+function getNextList(playlistId, pageToken, accumulated){
 
 	console.log("getNextList start.");
 	// Youtubeにアップロードされている動画リストの取得 条件：プレイリストID+ページトークン
 	fetch("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=" + playlistId + "&pageToken=" + pageToken + "&key=" + apiKey + "&maxResults=50").
 	then(response => response.json()).
-	then(data => {
-		// localStorageにデータを保存
-		setData(data);
+	then(async data => {
+		// メモリ上のリストに追加(IndexedDBへはまだ書き込まない)
+		appendData(accumulated, data);
 		// 次ページのトークンがある場合
 		if(data.nextPageToken){
 			// 次ページの動画リストの取得　※再帰
-			getNextList(playlistId, data.nextPageToken);
-		// 次ページのトークンがない場合
+			getNextList(playlistId, data.nextPageToken, accumulated);
+		// 次ページのトークンがない場合、全ページ取得完了したのでIndexedDBへ書き込む
 		}else{
+			await idbSet("playlist", accumulated);
 			// 画面出力
 			displayData();
 		}
@@ -116,27 +174,21 @@ function getNextList(playlistId, pageToken){
 }
 
 /**
- * localStorageにデータを保存
+ * メモリ上の累積リストにページ分の動画データを追加
  */
-function setData(data){
-	// localStorageからデータを取得
-	const storageList = JSON.parse(localStorage.getItem("playlist"));
-	// プレイリストループ
+function appendData(accumulated, data){
 	for(const item of data.items){
-		// 成形してリストに追加
-		storageList.push({
+		accumulated.push({
 			title:item.snippet.title,
 			videoId:item.snippet.resourceId.videoId
 		});
 	}
-	// リストを書き戻す
-	localStorage.setItem("playlist", JSON.stringify(storageList));
 }
 
 /**
  * 画面出力
  */
-function displayData(){
+async function displayData(){
 
 	console.log("displayData start.");
 	// 出力領域を取得
@@ -144,7 +196,7 @@ function displayData(){
 	// 出力をリセット
 	dt.innerHTML = null;
 	// Youtubeプレイリスト取得
-	const storageList = JSON.parse(localStorage.getItem("playlist"));
+	const storageList = await idbGet("playlist") || [];
 	// ソートする
 	storageList.sort(sortFunc);
 	// 取得結果ループ
@@ -388,9 +440,9 @@ function save(){
 				}])
 			}
 		).
-		then(data => {
+		then(async data => {
 			console.log("save finished.");
-			localStorage.removeItem(userId);
+			await idbRemove(userId);
 			init();
 		});
 	}catch(e){
@@ -434,9 +486,9 @@ function bulksave(){
 				body:JSON.stringify(updateList)
 			}
 		).
-		then(data => {
+		then(async data => {
 			console.log("save finished.");
-			localStorage.removeItem(userId);
+			await idbRemove(userId);
 			init();
 		});
 	}catch(e){
